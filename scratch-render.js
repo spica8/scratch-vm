@@ -10414,7 +10414,7 @@ var EventEmitter = __webpack_require__(7);
 var twgl = __webpack_require__(0);
 
 var RenderConstants = __webpack_require__(3);
-var Silhouette = __webpack_require__(21);
+var Silhouette = __webpack_require__(22);
 
 /**
  * Truncate a number into what could be stored in a 32 bit floating point value.
@@ -10447,13 +10447,6 @@ var Skin = function (_EventEmitter) {
 
     /** @type {Vec3} */
     _this._rotationCenter = twgl.v3.create(0, 0);
-
-    /**
-     * The "native" size, in texels, of this skin.
-     * @member size
-     * @abstract
-     * @type {Array<number>}
-     */
 
     /**
      * The uniforms to be used by the vertex and pixel shaders.
@@ -10549,14 +10542,13 @@ var Skin = function (_EventEmitter) {
     /**
      * Get the bounds of the drawable for determining its fenced position.
      * @param {Array<number>} drawable - The Drawable instance this skin is using.
-     * @param {?Rectangle} result - Optional destination for bounds calculation.
      * @return {!Rectangle} The drawable's bounds.
      */
 
   }, {
     key: 'getFenceBounds',
-    value: function getFenceBounds(drawable, result) {
-      return drawable.getFastBounds(result);
+    value: function getFenceBounds(drawable) {
+      return drawable.getFastBounds();
     }
 
     /**
@@ -10642,6 +10634,17 @@ var Skin = function (_EventEmitter) {
     key: 'rotationCenter',
     get: function get() {
       return this._rotationCenter;
+    }
+
+    /**
+     * @abstract
+     * @return {Array<number>} the "native" size, in texels, of this skin.
+     */
+
+  }, {
+    key: 'size',
+    get: function get() {
+      return [0, 0];
     }
   }]);
 
@@ -10997,34 +11000,6 @@ var Rectangle = function () {
                     this.bottom = y;
                 }
             }
-        }
-
-        /**
-         * Initialize a Rectangle to a 1 unit square centered at 0 x 0 transformed
-         * by a model matrix.
-         * @param {Array.<number>} m A 4x4 matrix to transform the rectangle by.
-         * @tutorial Rectangle-AABB-Matrix
-         */
-
-    }, {
-        key: "initFromModelMatrix",
-        value: function initFromModelMatrix(m) {
-            // In 2D space, we will soon use the 2x2 "top left" scale and rotation
-            // submatrix, while we store and the 1x2 "top right" that position
-            // vector.
-            var m30 = m[3 * 4 + 0];
-            var m31 = m[3 * 4 + 1];
-
-            // "Transform" a (0.5, 0.5) vector by the scale and rotation matrix but
-            // sum the absolute of each component instead of use the signed values.
-            var x = Math.abs(0.5 * m[0 * 4 + 0]) + Math.abs(0.5 * m[1 * 4 + 0]);
-            var y = Math.abs(0.5 * m[0 * 4 + 1]) + Math.abs(0.5 * m[1 * 4 + 1]);
-
-            // And adding them to the position components initializes our Rectangle.
-            this.left = -x + m30;
-            this.right = x + m30;
-            this.top = y + m31;
-            this.bottom = -y + m31;
         }
 
         /**
@@ -12302,8 +12277,7 @@ var EventEmitter = __webpack_require__(7);
 var hull = __webpack_require__(16);
 var twgl = __webpack_require__(0);
 
-var Skin = __webpack_require__(2);
-var BitmapSkin = __webpack_require__(22);
+var BitmapSkin = __webpack_require__(21);
 var Drawable = __webpack_require__(23);
 var Rectangle = __webpack_require__(5);
 var PenSkin = __webpack_require__(26);
@@ -12316,7 +12290,6 @@ var log = __webpack_require__(68);
 
 var __isTouchingDrawablesPoint = twgl.v3.create();
 var __candidatesBounds = new Rectangle();
-var __fenceBounds = new Rectangle();
 var __touchingColor = new Uint8ClampedArray(4);
 var __blendColor = new Uint8ClampedArray(4);
 
@@ -12615,23 +12588,6 @@ var RenderWebGL = function (_EventEmitter) {
         }
 
         /**
-         * Notify Drawables whose skin is the skin that changed.
-         * @param {Skin} skin - the skin that changed.
-         * @private
-         */
-
-    }, {
-        key: '_skinWasAltered',
-        value: function _skinWasAltered(skin) {
-            for (var i = 0; i < this._allDrawables.length; i++) {
-                var drawable = this._allDrawables[i];
-                if (drawable && drawable._skin === skin) {
-                    drawable._skinWasAltered();
-                }
-            }
-        }
-
-        /**
          * Create a new bitmap skin from a snapshot of the provided bitmap data.
          * @param {ImageData|HTMLImageElement|HTMLCanvasElement|HTMLVideoElement} bitmapData - new contents for this skin.
          * @param {!int} [costumeResolution=1] - The resolution to use for this bitmap.
@@ -12646,7 +12602,6 @@ var RenderWebGL = function (_EventEmitter) {
             var skinId = this._nextSkinId++;
             var newSkin = new BitmapSkin(skinId, this);
             newSkin.setBitmap(bitmapData, costumeResolution, rotationCenter);
-            newSkin.addListener(Skin.Events.WasAltered, this._skinWasAltered.bind(this, newSkin));
             this._allSkins[skinId] = newSkin;
             return skinId;
         }
@@ -12665,7 +12620,6 @@ var RenderWebGL = function (_EventEmitter) {
             var skinId = this._nextSkinId++;
             var newSkin = new SVGSkin(skinId, this);
             newSkin.setSVG(svgData, rotationCenter);
-            newSkin.addListener(Skin.Events.WasAltered, this._skinWasAltered.bind(this, newSkin));
             this._allSkins[skinId] = newSkin;
             return skinId;
         }
@@ -12680,7 +12634,6 @@ var RenderWebGL = function (_EventEmitter) {
         value: function createPenSkin() {
             var skinId = this._nextSkinId++;
             var newSkin = new PenSkin(skinId, this);
-            newSkin.addListener(Skin.Events.WasAltered, this._skinWasAltered.bind(this, newSkin));
             this._allSkins[skinId] = newSkin;
             return skinId;
         }
@@ -12700,7 +12653,6 @@ var RenderWebGL = function (_EventEmitter) {
             var skinId = this._nextSkinId++;
             var newSkin = new TextBubbleSkin(skinId, this);
             newSkin.setTextBubble(type, text, pointsLeft);
-            newSkin.addListener(Skin.Events.WasAltered, this._skinWasAltered.bind(this, newSkin));
             this._allSkins[skinId] = newSkin;
             return skinId;
         }
@@ -13812,7 +13764,7 @@ var RenderWebGL = function (_EventEmitter) {
 
             var dx = x - drawable._position[0];
             var dy = y - drawable._position[1];
-            var aabb = drawable._skin.getFenceBounds(drawable, __fenceBounds);
+            var aabb = drawable._skin.getFenceBounds(drawable);
             var inset = Math.floor(Math.min(aabb.width, aabb.height) / 2);
 
             var sx = this._xRight - Math.min(FENCE_WIDTH, inset);
@@ -14742,6 +14694,192 @@ module.exports = convex;
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
+var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var twgl = __webpack_require__(0);
+
+var Skin = __webpack_require__(2);
+
+var BitmapSkin = function (_Skin) {
+    _inherits(BitmapSkin, _Skin);
+
+    /**
+     * Create a new Bitmap Skin.
+     * @extends Skin
+     * @param {!int} id - The ID for this Skin.
+     * @param {!RenderWebGL} renderer - The renderer which will use this skin.
+     */
+    function BitmapSkin(id, renderer) {
+        _classCallCheck(this, BitmapSkin);
+
+        /** @type {!int} */
+        var _this = _possibleConstructorReturn(this, (BitmapSkin.__proto__ || Object.getPrototypeOf(BitmapSkin)).call(this, id));
+
+        _this._costumeResolution = 1;
+
+        /** @type {!RenderWebGL} */
+        _this._renderer = renderer;
+
+        /** @type {WebGLTexture} */
+        _this._texture = null;
+
+        /** @type {Array<int>} */
+        _this._textureSize = [0, 0];
+        return _this;
+    }
+
+    /**
+     * Dispose of this object. Do not use it after calling this method.
+     */
+
+
+    _createClass(BitmapSkin, [{
+        key: 'dispose',
+        value: function dispose() {
+            if (this._texture) {
+                this._renderer.gl.deleteTexture(this._texture);
+                this._texture = null;
+            }
+            _get(BitmapSkin.prototype.__proto__ || Object.getPrototypeOf(BitmapSkin.prototype), 'dispose', this).call(this);
+        }
+
+        /**
+         * @returns {boolean} true for a raster-style skin (like a BitmapSkin), false for vector-style (like SVGSkin).
+         */
+
+    }, {
+        key: 'getTexture',
+
+
+        /**
+         * @param {Array<number>} scale - The scaling factors to be used.
+         * @return {WebGLTexture} The GL texture representation of this skin when drawing at the given scale.
+         */
+        // eslint-disable-next-line no-unused-vars
+        value: function getTexture(scale) {
+            return this._texture;
+        }
+
+        /**
+         * Get the bounds of the drawable for determining its fenced position.
+         * @param {Array<number>} drawable - The Drawable instance this skin is using.
+         * @return {!Rectangle} The drawable's bounds. For compatibility with Scratch 2, we always use getAABB for bitmaps.
+         */
+
+    }, {
+        key: 'getFenceBounds',
+        value: function getFenceBounds(drawable) {
+            return drawable.getAABB();
+        }
+
+        /**
+         * Set the contents of this skin to a snapshot of the provided bitmap data.
+         * @param {ImageData|HTMLImageElement|HTMLCanvasElement|HTMLVideoElement} bitmapData - new contents for this skin.
+         * @param {int} [costumeResolution=1] - The resolution to use for this bitmap.
+         * @param {Array<number>} [rotationCenter] - Optional rotation center for the bitmap. If not supplied, it will be
+         * calculated from the bounding box
+         * @fires Skin.event:WasAltered
+         */
+
+    }, {
+        key: 'setBitmap',
+        value: function setBitmap(bitmapData, costumeResolution, rotationCenter) {
+            var gl = this._renderer.gl;
+
+            // Preferably bitmapData is ImageData. ImageData speeds up updating
+            // Silhouette and is better handled by more browsers in regards to
+            // memory.
+            var textureData = bitmapData;
+            if (bitmapData instanceof HTMLCanvasElement) {
+                // Given a HTMLCanvasElement get the image data to pass to webgl and
+                // Silhouette.
+                var context = bitmapData.getContext('2d');
+                textureData = context.getImageData(0, 0, bitmapData.width, bitmapData.height);
+            }
+
+            if (this._texture) {
+                gl.bindTexture(gl.TEXTURE_2D, this._texture);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, textureData);
+                this._silhouette.update(textureData);
+            } else {
+                // TODO: mipmaps?
+                var textureOptions = {
+                    auto: true,
+                    wrap: gl.CLAMP_TO_EDGE,
+                    src: textureData
+                };
+
+                this._texture = twgl.createTexture(gl, textureOptions);
+                this._silhouette.update(textureData);
+            }
+
+            // Do these last in case any of the above throws an exception
+            this._costumeResolution = costumeResolution || 2;
+            this._textureSize = BitmapSkin._getBitmapSize(bitmapData);
+
+            if (typeof rotationCenter === 'undefined') rotationCenter = this.calculateRotationCenter();
+            this.setRotationCenter.apply(this, rotationCenter);
+
+            this.emit(Skin.Events.WasAltered);
+        }
+
+        /**
+         * @param {ImageData|HTMLImageElement|HTMLCanvasElement|HTMLVideoElement} bitmapData - bitmap data to inspect.
+         * @returns {Array<int>} the width and height of the bitmap data, in pixels.
+         * @private
+         */
+
+    }, {
+        key: 'isRaster',
+        get: function get() {
+            return true;
+        }
+
+        /**
+         * @return {Array<number>} the "native" size, in texels, of this skin.
+         */
+
+    }, {
+        key: 'size',
+        get: function get() {
+            return [this._textureSize[0] / this._costumeResolution, this._textureSize[1] / this._costumeResolution];
+        }
+    }], [{
+        key: '_getBitmapSize',
+        value: function _getBitmapSize(bitmapData) {
+            if (bitmapData instanceof HTMLImageElement) {
+                return [bitmapData.naturalWidth || bitmapData.width, bitmapData.naturalHeight || bitmapData.height];
+            }
+
+            if (bitmapData instanceof HTMLVideoElement) {
+                return [bitmapData.videoWidth || bitmapData.width, bitmapData.videoHeight || bitmapData.height];
+            }
+
+            // ImageData or HTMLCanvasElement
+            return [bitmapData.width, bitmapData.height];
+        }
+    }]);
+
+    return BitmapSkin;
+}(Skin);
+
+module.exports = BitmapSkin;
+
+/***/ }),
+/* 22 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
 /**
@@ -14973,190 +15111,6 @@ var Silhouette = function () {
 module.exports = Silhouette;
 
 /***/ }),
-/* 22 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-var twgl = __webpack_require__(0);
-
-var Skin = __webpack_require__(2);
-
-var BitmapSkin = function (_Skin) {
-    _inherits(BitmapSkin, _Skin);
-
-    /**
-     * Create a new Bitmap Skin.
-     * @extends Skin
-     * @param {!int} id - The ID for this Skin.
-     * @param {!RenderWebGL} renderer - The renderer which will use this skin.
-     */
-    function BitmapSkin(id, renderer) {
-        _classCallCheck(this, BitmapSkin);
-
-        /** @type {!int} */
-        var _this = _possibleConstructorReturn(this, (BitmapSkin.__proto__ || Object.getPrototypeOf(BitmapSkin)).call(this, id));
-
-        _this._costumeResolution = 1;
-
-        /** @type {!RenderWebGL} */
-        _this._renderer = renderer;
-
-        /** @type {WebGLTexture} */
-        _this._texture = null;
-
-        /** @type {Array<int>} */
-        _this._textureSize = [0, 0];
-
-        /**
-         * The "native" size, in texels, of this skin.
-         * @type {Array<number>}
-         */
-        _this.size = [0, 0];
-        return _this;
-    }
-
-    /**
-     * Dispose of this object. Do not use it after calling this method.
-     */
-
-
-    _createClass(BitmapSkin, [{
-        key: 'dispose',
-        value: function dispose() {
-            if (this._texture) {
-                this._renderer.gl.deleteTexture(this._texture);
-                this._texture = null;
-            }
-            _get(BitmapSkin.prototype.__proto__ || Object.getPrototypeOf(BitmapSkin.prototype), 'dispose', this).call(this);
-        }
-
-        /**
-         * @returns {boolean} true for a raster-style skin (like a BitmapSkin), false for vector-style (like SVGSkin).
-         */
-
-    }, {
-        key: 'getTexture',
-
-
-        /**
-         * @param {Array<number>} scale - The scaling factors to be used.
-         * @return {WebGLTexture} The GL texture representation of this skin when drawing at the given scale.
-         */
-        // eslint-disable-next-line no-unused-vars
-        value: function getTexture(scale) {
-            return this._texture;
-        }
-
-        /**
-         * Get the bounds of the drawable for determining its fenced position.
-         * @param {Array<number>} drawable - The Drawable instance this skin is using.
-         * @param {?Rectangle} result - Optional destination for bounds calculation.
-         * @return {!Rectangle} The drawable's bounds. For compatibility with Scratch 2, we always use getAABB for bitmaps.
-         */
-
-    }, {
-        key: 'getFenceBounds',
-        value: function getFenceBounds(drawable, result) {
-            return drawable.getAABB(result);
-        }
-
-        /**
-         * Set the contents of this skin to a snapshot of the provided bitmap data.
-         * @param {ImageData|HTMLImageElement|HTMLCanvasElement|HTMLVideoElement} bitmapData - new contents for this skin.
-         * @param {int} [costumeResolution=1] - The resolution to use for this bitmap.
-         * @param {Array<number>} [rotationCenter] - Optional rotation center for the bitmap. If not supplied, it will be
-         * calculated from the bounding box
-         * @fires Skin.event:WasAltered
-         */
-
-    }, {
-        key: 'setBitmap',
-        value: function setBitmap(bitmapData, costumeResolution, rotationCenter) {
-            var gl = this._renderer.gl;
-
-            // Preferably bitmapData is ImageData. ImageData speeds up updating
-            // Silhouette and is better handled by more browsers in regards to
-            // memory.
-            var textureData = bitmapData;
-            if (bitmapData instanceof HTMLCanvasElement) {
-                // Given a HTMLCanvasElement get the image data to pass to webgl and
-                // Silhouette.
-                var context = bitmapData.getContext('2d');
-                textureData = context.getImageData(0, 0, bitmapData.width, bitmapData.height);
-            }
-
-            if (this._texture) {
-                gl.bindTexture(gl.TEXTURE_2D, this._texture);
-                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, textureData);
-                this._silhouette.update(textureData);
-            } else {
-                // TODO: mipmaps?
-                var textureOptions = {
-                    auto: true,
-                    wrap: gl.CLAMP_TO_EDGE,
-                    src: textureData
-                };
-
-                this._texture = twgl.createTexture(gl, textureOptions);
-                this._silhouette.update(textureData);
-            }
-
-            // Do these last in case any of the above throws an exception
-            this._costumeResolution = costumeResolution || 2;
-            this._textureSize = BitmapSkin._getBitmapSize(bitmapData);
-            this.size = [this._textureSize[0] / this._costumeResolution, this._textureSize[1] / this._costumeResolution];
-
-            if (typeof rotationCenter === 'undefined') rotationCenter = this.calculateRotationCenter();
-            this.setRotationCenter.apply(this, rotationCenter);
-
-            this.emit(Skin.Events.WasAltered);
-        }
-
-        /**
-         * @param {ImageData|HTMLImageElement|HTMLCanvasElement|HTMLVideoElement} bitmapData - bitmap data to inspect.
-         * @returns {Array<int>} the width and height of the bitmap data, in pixels.
-         * @private
-         */
-
-    }, {
-        key: 'isRaster',
-        get: function get() {
-            return true;
-        }
-    }], [{
-        key: '_getBitmapSize',
-        value: function _getBitmapSize(bitmapData) {
-            if (bitmapData instanceof HTMLImageElement) {
-                return [bitmapData.naturalWidth || bitmapData.width, bitmapData.naturalHeight || bitmapData.height];
-            }
-
-            if (bitmapData instanceof HTMLVideoElement) {
-                return [bitmapData.videoWidth || bitmapData.width, bitmapData.videoHeight || bitmapData.height];
-            }
-
-            // ImageData or HTMLCanvasElement
-            return [bitmapData.width, bitmapData.height];
-        }
-    }]);
-
-    return BitmapSkin;
-}(Skin);
-
-module.exports = BitmapSkin;
-
-/***/ }),
 /* 23 */
 /***/ (function(module, exports, __webpack_require__) {
 
@@ -15172,6 +15126,7 @@ var twgl = __webpack_require__(0);
 var Rectangle = __webpack_require__(5);
 var RenderConstants = __webpack_require__(3);
 var ShaderManager = __webpack_require__(4);
+var Skin = __webpack_require__(2);
 var EffectTransform = __webpack_require__(8);
 
 /**
@@ -15271,6 +15226,8 @@ var Drawable = function () {
         /** @todo move convex hull functionality, maybe bounds functionality overall, to Skin classes */
         this._convexHullPoints = null;
         this._convexHullDirty = true;
+
+        this._skinWasAltered = this._skinWasAltered.bind(this);
     }
 
     /**
@@ -15603,10 +15560,9 @@ var Drawable = function () {
          * This function applies the transform matrix to the known convex hull,
          * and then finds the minimum box along the axes.
          * Before calling this, ensure the renderer has updated convex hull points.
-         * @param {?Rectangle} result optional destination for bounds calculation
          * @return {!Rectangle} Bounds for a tight box around the Drawable.
          */
-        value: function getBounds(result) {
+        value: function getBounds() {
             if (this.needsConvexHullPoints()) {
                 throw new Error('Needs updated convex hull points before bounds calculation.');
             }
@@ -15615,22 +15571,21 @@ var Drawable = function () {
             }
             var transformedHullPoints = this._getTransformedHullPoints();
             // Search through transformed points to generate box on axes.
-            result = result || new Rectangle();
-            result.initFromPointsAABB(transformedHullPoints);
-            return result;
+            var bounds = new Rectangle();
+            bounds.initFromPointsAABB(transformedHullPoints);
+            return bounds;
         }
 
         /**
          * Get the precise bounds for the upper 8px slice of the Drawable.
          * Used for calculating where to position a text bubble.
          * Before calling this, ensure the renderer has updated convex hull points.
-         * @param {?Rectangle} result optional destination for bounds calculation
          * @return {!Rectangle} Bounds for a tight box around a slice of the Drawable.
          */
 
     }, {
         key: 'getBoundsForBubble',
-        value: function getBoundsForBubble(result) {
+        value: function getBoundsForBubble() {
             if (this.needsConvexHullPoints()) {
                 throw new Error('Needs updated convex hull points before bubble bounds calculation.');
             }
@@ -15646,9 +15601,9 @@ var Drawable = function () {
                 return p[1] > maxY - slice;
             });
             // Search through filtered points to generate box on axes.
-            result = result || new Rectangle();
-            result.initFromPointsAABB(filteredHullPoints);
-            return result;
+            var bounds = new Rectangle();
+            bounds.initFromPointsAABB(filteredHullPoints);
+            return bounds;
         }
 
         /**
@@ -15658,38 +15613,36 @@ var Drawable = function () {
          * which is tightly snapped to account for a Drawable's transparent regions.
          * `getAABB` returns a much less accurate bounding box, but will be much
          * faster to calculate so may be desired for quick checks/optimizations.
-         * @param {?Rectangle} result optional destination for bounds calculation
          * @return {!Rectangle} Rough axis-aligned bounding box for Drawable.
          */
 
     }, {
         key: 'getAABB',
-        value: function getAABB(result) {
+        value: function getAABB() {
             if (this._transformDirty) {
                 this._calculateTransform();
             }
             var tm = this._uniforms.u_modelMatrix;
-            result = result || new Rectangle();
-            result.initFromModelMatrix(tm);
-            return result;
+            var bounds = new Rectangle();
+            bounds.initFromPointsAABB([twgl.m4.transformPoint(tm, [-0.5, -0.5, 0]), twgl.m4.transformPoint(tm, [0.5, -0.5, 0]), twgl.m4.transformPoint(tm, [-0.5, 0.5, 0]), twgl.m4.transformPoint(tm, [0.5, 0.5, 0])]);
+            return bounds;
         }
 
         /**
          * Return the best Drawable bounds possible without performing graphics queries.
          * I.e., returns the tight bounding box when the convex hull points are already
          * known, but otherwise return the rough AABB of the Drawable.
-         * @param {?Rectangle} result optional destination for bounds calculation
          * @return {!Rectangle} Bounds for the Drawable.
          */
 
     }, {
         key: 'getFastBounds',
-        value: function getFastBounds(result) {
+        value: function getFastBounds() {
             this.updateMatrix();
             if (!this.needsConvexHullPoints()) {
-                return this.getBounds(result);
+                return this.getBounds();
             }
-            return this.getAABB(result);
+            return this.getAABB();
         }
 
         /**
@@ -15785,7 +15738,13 @@ var Drawable = function () {
         ,
         set: function set(newSkin) {
             if (this._skin !== newSkin) {
+                if (this._skin) {
+                    this._skin.removeListener(Skin.Events.WasAltered, this._skinWasAltered);
+                }
                 this._skin = newSkin;
+                if (this._skin) {
+                    this._skin.addListener(Skin.Events.WasAltered, this._skinWasAltered);
+                }
                 this._skinWasAltered();
             }
         }
@@ -16002,9 +15961,6 @@ var PenSkin = function (_Skin) {
         /** @type {HTMLCanvasElement} */
         _this._canvas = document.createElement('canvas');
 
-        /** @type {Array<number>} */
-        _this._canvasSize = twgl.v3.create();
-
         /** @type {WebGLTexture} */
         _this._texture = null;
 
@@ -16114,7 +16070,7 @@ var PenSkin = function (_Skin) {
             gl.clear(gl.COLOR_BUFFER_BIT);
 
             var ctx = this._canvas.getContext('2d');
-            ctx.clearRect(0, 0, this._canvasSize[0], this._canvasSize[1]);
+            ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
 
             this._silhouetteDirty = true;
         }
@@ -16336,8 +16292,8 @@ var PenSkin = function (_Skin) {
     }, {
         key: '_drawRectangle',
         value: function _drawRectangle(currentShader, texture, bounds) {
-            var x = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : -this._canvasSize[0] / 2;
-            var y = arguments.length > 4 && arguments[4] !== undefined ? arguments[4] : this._canvasSize[1] / 2;
+            var x = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : -this._canvas.width / 2;
+            var y = arguments.length > 4 && arguments[4] !== undefined ? arguments[4] : this._canvas.height / 2;
 
             var gl = this._renderer.gl;
 
@@ -16397,8 +16353,8 @@ var PenSkin = function (_Skin) {
         key: '_drawToBuffer',
         value: function _drawToBuffer() {
             var texture = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : this._texture;
-            var x = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : -this._canvasSize[0] / 2;
-            var y = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : this._canvasSize[1] / 2;
+            var x = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : -this._canvas.width / 2;
+            var y = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : this._canvas.height / 2;
 
             if (texture !== this._texture && this._canvasDirty) {
                 this._drawToBuffer();
@@ -16413,7 +16369,7 @@ var PenSkin = function (_Skin) {
                 gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this._canvas);
 
                 var ctx = this._canvas.getContext('2d');
-                ctx.clearRect(0, 0, this._canvasSize[0], this._canvasSize[1]);
+                ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
 
                 this._canvasDirty = false;
             }
@@ -16457,8 +16413,8 @@ var PenSkin = function (_Skin) {
             this._bounds = new Rectangle();
             this._bounds.initFromBounds(width / 2, width / -2, height / 2, height / -2);
 
-            this._canvas.width = this._canvasSize[0] = width;
-            this._canvas.height = this._canvasSize[1] = height;
+            this._canvas.width = width;
+            this._canvas.height = height;
             this._rotationCenter[0] = width / 2;
             this._rotationCenter[1] = height / 2;
 
@@ -16542,8 +16498,8 @@ var PenSkin = function (_Skin) {
                 this._renderer.enterDrawRegion(this._toBufferDrawRegionId);
 
                 // Sample the framebuffer's pixels into the silhouette instance
-                var skinPixels = new Uint8Array(Math.floor(this._canvasSize[0] * this._canvasSize[1] * 4));
-                gl.readPixels(0, 0, this._canvasSize[0], this._canvasSize[1], gl.RGBA, gl.UNSIGNED_BYTE, skinPixels);
+                var skinPixels = new Uint8Array(Math.floor(this._canvas.width * this._canvas.height * 4));
+                gl.readPixels(0, 0, this._canvas.width, this._canvas.height, gl.RGBA, gl.UNSIGNED_BYTE, skinPixels);
 
                 var skinCanvas = this._canvas;
                 skinCanvas.width = bounds.width;
@@ -16582,7 +16538,7 @@ var PenSkin = function (_Skin) {
     }, {
         key: 'size',
         get: function get() {
-            return this._canvasSize;
+            return [this._canvas.width, this._canvas.height];
         }
     }]);
 
@@ -16644,24 +16600,6 @@ var SVGSkin = function (_Skin) {
 
         /** @type {Number} */
         _this._maxTextureScale = 0;
-
-        /**
-         * The natural size, in Scratch units, of this skin.
-         * @type {Array<number>}
-         */
-        _this.size = [0, 0];
-
-        /**
-         * The viewbox offset of the svg.
-         * @type {Array<number>}
-         */
-        _this._viewOffset = [0, 0];
-
-        /**
-         * The rotation center before offset by _viewOffset.
-         * @type {Array<number>}
-         */
-        _this._rawRotationCenter = [NaN, NaN];
         return _this;
     }
 
@@ -16681,19 +16619,21 @@ var SVGSkin = function (_Skin) {
         }
 
         /**
-         * Set the origin, in object space, about which this Skin should rotate.
-         * @param {number} x - The x coordinate of the new rotation center.
-         * @param {number} y - The y coordinate of the new rotation center.
+         * @return {Array<number>} the natural size, in Scratch units, of this skin.
          */
 
     }, {
         key: 'setRotationCenter',
+
+
+        /**
+         * Set the origin, in object space, about which this Skin should rotate.
+         * @param {number} x - The x coordinate of the new rotation center.
+         * @param {number} y - The y coordinate of the new rotation center.
+         */
         value: function setRotationCenter(x, y) {
-            if (x !== this._rawRotationCenter[0] || y !== this._rawRotationCenter[1]) {
-                this._rawRotationCenter[0] = x;
-                this._rawRotationCenter[1] = y;
-                _get(SVGSkin.prototype.__proto__ || Object.getPrototypeOf(SVGSkin.prototype), 'setRotationCenter', this).call(this, x - this._viewOffset[0], y - this._viewOffset[1]);
-            }
+            var viewOffset = this._svgRenderer.viewOffset;
+            _get(SVGSkin.prototype.__proto__ || Object.getPrototypeOf(SVGSkin.prototype), 'setRotationCenter', this).call(this, x - viewOffset[0], y - viewOffset[1]);
         }
 
         /**
@@ -16780,13 +16720,14 @@ var SVGSkin = function (_Skin) {
                 }
 
                 if (typeof rotationCenter === 'undefined') rotationCenter = _this3.calculateRotationCenter();
-                _this3.size = _this3._svgRenderer.size;
-                _this3._viewOffset = _this3._svgRenderer.viewOffset;
-                // Reset rawRotationCenter when we update viewOffset.
-                _this3._rawRotationCenter = [NaN, NaN];
-                _this3.setRotationCenter(rotationCenter[0], rotationCenter[1]);
+                _this3.setRotationCenter.apply(_this3, rotationCenter);
                 _this3.emit(Skin.Events.WasAltered);
             });
+        }
+    }, {
+        key: 'size',
+        get: function get() {
+            return this._svgRenderer.size;
         }
     }]);
 
@@ -17006,7 +16947,7 @@ class SvgRenderer {
                 ty = -4 * fontSize / 22;
             }
 
-            if (textElement.transform.baseVal.length === 0) {
+            if (textElement.transform.baseVal.numberOfItems === 0) {
                 const transform = this._svgTag.createSVGTransform();
                 textElement.transform.baseVal.appendItem(transform);
             }
@@ -17368,6 +17309,19 @@ module.exports = function (svgString) {
             /(<image[^>]+?xlink:href=["'])data:img\/png/g,
             // use the captured <image ..... xlink:href=" then append the right data uri mime type
             ($0, $1) => `${$1}data:image/png`
+        );
+    }
+
+    // Some SVGs from Inkscape attempt to bind a prefix to a reserved namespace name.
+    // This will cause SVG parsing to fail, so replace these with a dummy namespace name.
+    // This namespace name is only valid for "xml", and if we bind "xmlns:xml" to the dummy namespace,
+    // parsing will fail yet again, so exclude "xmlns:xml" declarations.
+    if (svgString.match(/xmlns:(?!xml=)[^ ]+="http:\/\/www.w3.org\/XML\/1998\/namespace"/) !== null) {
+        svgString = svgString.replace(
+            // capture the entire attribute
+            /(xmlns:(?!xml=)[^ ]+)="http:\/\/www.w3.org\/XML\/1998\/namespace"/g,
+            // use the captured attribute name; replace only the URL
+            ($0, $1) => `${$1}="http://dummy.namespace"`
         );
     }
 
@@ -21981,7 +21935,8 @@ function toByteArray (b64) {
     ? validLen - 4
     : validLen
 
-  for (var i = 0; i < len; i += 4) {
+  var i
+  for (i = 0; i < len; i += 4) {
     tmp =
       (revLookup[b64.charCodeAt(i)] << 18) |
       (revLookup[b64.charCodeAt(i + 1)] << 12) |
@@ -22172,7 +22127,7 @@ module.exports = Array.isArray || function (arr) {
 /* 66 */
 /***/ (function(module) {
 
-module.exports = {"Other":0,"CR":1,"LF":2,"Control":3,"Extend":4,"Regional_Indicator":5,"SpacingMark":6,"L":7,"V":8,"T":9,"LV":10,"LVT":11};
+module.exports = JSON.parse("{\"Other\":0,\"CR\":1,\"LF\":2,\"Control\":3,\"Extend\":4,\"Regional_Indicator\":5,\"SpacingMark\":6,\"L\":7,\"V\":8,\"T\":9,\"LV\":10,\"LVT\":11}");
 
 /***/ }),
 /* 67 */
